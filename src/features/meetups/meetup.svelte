@@ -1,6 +1,9 @@
 <script>
+  import Meetup from "./meetupStore.js";
   export let imageURL;
   export let title;
+  export let isFavourite;
+  export let id
 </script>
 
 <article class="bb b--black-10">
@@ -18,6 +21,13 @@
         <h1 class="f3 fw1 baskerville mt0 lh-title">
           {title}
         </h1>
+
+        {#if isFavourite}
+        <small class="green pointer" on:click={() => Meetup.toggleFavourite(id)}>Favourite</small>
+        {:else}
+        <small class="pointer" on:click={() => Meetup.toggleFavourite(id)}> Mark Favourite</small>
+        {/if}
+
         <p class="f6 f5-l lh-copy">
           Whale is the common name for a widely distributed and diverse group of
           fully aquatic placental marine mammals. They are an informal grouping

@@ -31,6 +31,20 @@ var app = (function () {
 		return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
 	}
 
+	function validate_store(store, name) {
+		if (!store || typeof store.subscribe !== 'function') {
+			throw new Error(`'${name}' is not a store with a 'subscribe' method`);
+		}
+	}
+
+	function subscribe(component, store, callback) {
+		const unsub = store.subscribe(callback);
+
+		component.$$.on_destroy.push(unsub.unsubscribe
+			? () => unsub.unsubscribe()
+			: unsub);
+	}
+
 	function append(target, node) {
 		target.appendChild(node);
 	}
@@ -87,33 +101,10 @@ var app = (function () {
 		if (text.data !== data) text.data = data;
 	}
 
-	function custom_event(type, detail) {
-		const e = document.createEvent('CustomEvent');
-		e.initCustomEvent(type, false, false, detail);
-		return e;
-	}
-
 	let current_component;
 
 	function set_current_component(component) {
 		current_component = component;
-	}
-
-	function createEventDispatcher() {
-		const component = current_component;
-
-		return (type, detail) => {
-			const callbacks = component.$$.callbacks[type];
-
-			if (callbacks) {
-				// TODO are there situations where events could be dispatched
-				// in a server (non-DOM) environment?
-				const event = custom_event(type, detail);
-				callbacks.slice().forEach(fn => {
-					fn.call(component, event);
-				});
-			}
-		};
 	}
 
 	const dirty_components = [];
@@ -1444,6 +1435,90 @@ var app = (function () {
 	var finishDraft = immer.finishDraft.bind(immer);
 	//# sourceMappingURL=immer.module.js.map
 
+	function writable(value, start = noop) {
+		let stop;
+		const subscribers = [];
+
+		function set(new_value) {
+			if (safe_not_equal(value, new_value)) {
+				value = new_value;
+				if (!stop) return; // not ready
+				subscribers.forEach(s => s[1]());
+				subscribers.forEach(s => s[0](value));
+			}
+		}
+
+		function update(fn) {
+			set(fn(value));
+		}
+
+		function subscribe(run, invalidate = noop) {
+			const subscriber = [run, invalidate];
+			subscribers.push(subscriber);
+			if (subscribers.length === 1) stop = start(set) || noop;
+			run(value);
+
+			return () => {
+				const index = subscribers.indexOf(subscriber);
+				if (index !== -1) subscribers.splice(index, 1);
+				if (subscribers.length === 0) stop();
+			};
+		}
+
+		return { set, update, subscribe };
+	}
+
+	const meetups = writable([
+	  {
+	    id: "a",
+	    title: "Giant Whale Invests Huge Money to Build a ComputerOut of Plankton",
+	    subtitle: "c",
+	    description: "d",
+	    imageURL: "http://mrmrs.github.io/photos/whale.jpg",
+	    address: "e",
+	    contact: "f",
+	    isFavourite: true
+	  },
+	  {
+	    id: "a22",
+	    title: "b2s",
+	    subtitle: "c",
+	    description: "d",
+	    imageURL: "d",
+	    address: "e",
+	    contact: "f",
+	    isFavourite: false
+	  }
+	]);
+
+	const addMeetup = () => {
+	  // https://github.com/immerjs/immer
+
+	  newMeetups = produce(meetups, draft => {
+	    draft.push({
+	      id: Math.random().toString(),
+	      isFavourite: false,
+	      ...newMeetup
+	    });
+	  });
+
+	  meetups.update(newMeetups);
+	};
+
+	const toggleFavourite = id =>
+	  meetups.update(items =>
+	    produce(items, draft => {
+	      const index = draft.findIndex(meet => meet.id === id);
+	      draft[index].isFavourite = !draft[index].isFavourite;
+	    })
+	  );
+
+	const customMeetupsStore = {
+	  subscribe: meetups.subscribe,
+	  addMeetup,
+	  toggleFavourite
+	};
+
 	const isEmpty = val => val.trim().length === 0;
 
 	const isValidEmail = val => val.match(/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/);
@@ -1760,29 +1835,29 @@ var app = (function () {
 				div1 = element("div");
 				input = element("input");
 				legend.className = "f4 fw6 ph0 mh0";
-				add_location(legend, file$1, 25, 4, 626);
+				add_location(legend, file$1, 40, 4, 849);
 				label.className = "db fw6 lh-copy f6";
 				label.htmlFor = "description";
-				add_location(label, file$1, 33, 6, 869);
+				add_location(label, file$1, 48, 6, 1092);
 				textarea.className = "b pa2 input-reset ba bg-transparent hover-bg-black hover-white w-100";
 				attr(textarea, "type", "text");
 				textarea.name = "";
 				textarea.id = "description";
-				add_location(textarea, file$1, 34, 6, 946);
+				add_location(textarea, file$1, 49, 6, 1169);
 				div0.className = "mv3";
-				add_location(div0, file$1, 32, 4, 845);
+				add_location(div0, file$1, 47, 4, 1068);
 				fieldset.id = "sign_up";
 				fieldset.className = "ba b--transparent ph0 mh0";
-				add_location(fieldset, file$1, 24, 2, 564);
+				add_location(fieldset, file$1, 39, 2, 787);
 				input.className = "b ph3 pv2 input-reset ba b--black bg-transparent grow pointer f6 dib";
 				attr(input, "type", "submit");
 				input.value = "Create Meetup";
 				input.disabled = input_disabled_value = !isValidEmail(ctx.contact) || isEmpty(ctx.contact) ||isEmpty(ctx.title);
-				add_location(input, file$1, 50, 4, 1466);
+				add_location(input, file$1, 65, 4, 1689);
 				div1.className = "";
-				add_location(div1, file$1, 49, 2, 1447);
+				add_location(div1, file$1, 64, 2, 1670);
 				form.className = "measure center";
-				add_location(form, file$1, 20, 0, 469);
+				add_location(form, file$1, 35, 0, 698);
 
 				dispose = [
 					listen(textarea, "input", ctx.textarea_input_handler),
@@ -1908,12 +1983,8 @@ var app = (function () {
 
 	function instance$1($$self, $$props, $$invalidate) {
 		
-	  const dispatch = createEventDispatcher();
 
 	  let { title = "", subtitle = "", description = "", imageURL = "", address = "", contact = "" } = $$props;
-	 
-
-	  console.log('isEmpty(title)',isEmpty(title) );
 
 		function textinput0_value_binding(value) {
 			title = value;
@@ -1946,7 +2017,7 @@ var app = (function () {
 		}
 
 		function submit_handler() {
-			return dispatch('handleSubmit');
+			return customMeetupsStore.addMeetup();
 		}
 
 		$$self.$set = $$props => {
@@ -1959,7 +2030,6 @@ var app = (function () {
 		};
 
 		return {
-			dispatch,
 			title,
 			subtitle,
 			description,
@@ -2092,8 +2162,70 @@ var app = (function () {
 
 	const file$3 = "src/features/meetups/meetup.svelte";
 
+	// (27:8) {:else}
+	function create_else_block(ctx) {
+		var small, dispose;
+
+		return {
+			c: function create() {
+				small = element("small");
+				small.textContent = "Mark Favourite";
+				small.className = "pointer";
+				add_location(small, file$3, 27, 8, 785);
+				dispose = listen(small, "click", ctx.click_handler_1);
+			},
+
+			m: function mount(target, anchor) {
+				insert(target, small, anchor);
+			},
+
+			d: function destroy(detaching) {
+				if (detaching) {
+					detach(small);
+				}
+
+				dispose();
+			}
+		};
+	}
+
+	// (25:8) {#if isFavourite}
+	function create_if_block$1(ctx) {
+		var small, dispose;
+
+		return {
+			c: function create() {
+				small = element("small");
+				small.textContent = "Favourite";
+				small.className = "green pointer";
+				add_location(small, file$3, 25, 8, 670);
+				dispose = listen(small, "click", ctx.click_handler);
+			},
+
+			m: function mount(target, anchor) {
+				insert(target, small, anchor);
+			},
+
+			d: function destroy(detaching) {
+				if (detaching) {
+					detach(small);
+				}
+
+				dispose();
+			}
+		};
+	}
+
 	function create_fragment$3(ctx) {
-		var article, a, div2, div0, img, t0, div1, h1, t1, t2, p0, t4, p1;
+		var article, a, div2, div0, img, t0, div1, h1, t1, t2, t3, p0, t5, p1;
+
+		function select_block_type(ctx) {
+			if (ctx.isFavourite) return create_if_block$1;
+			return create_else_block;
+		}
+
+		var current_block_type = select_block_type(ctx);
+		var if_block = current_block_type(ctx);
 
 		return {
 			c: function create() {
@@ -2107,32 +2239,34 @@ var app = (function () {
 				h1 = element("h1");
 				t1 = text(ctx.title);
 				t2 = space();
+				if_block.c();
+				t3 = space();
 				p0 = element("p");
 				p0.textContent = "Whale is the common name for a widely distributed and diverse group of\n          fully aquatic placental marine mammals. They are an informal grouping\n          within the infraorder Cetacea, usually excluding dolphins and\n          porpoises.";
-				t4 = space();
+				t5 = space();
 				p1 = element("p");
 				p1.textContent = "By Robin Darnell";
 				img.src = ctx.imageURL;
 				img.className = "db";
 				img.alt = "Photo of a whale's tale coming crashing out of\n        the water.";
-				add_location(img, file$3, 9, 8, 267);
+				add_location(img, file$3, 12, 8, 350);
 				div0.className = "pr3-ns mb4 mb0-ns w-100 w-40-ns";
-				add_location(div0, file$3, 8, 6, 213);
+				add_location(div0, file$3, 11, 6, 296);
 				h1.className = "f3 fw1 baskerville mt0 lh-title";
-				add_location(h1, file$3, 17, 8, 475);
+				add_location(h1, file$3, 20, 8, 558);
 				p0.className = "f6 f5-l lh-copy";
-				add_location(p0, file$3, 20, 8, 560);
+				add_location(p0, file$3, 30, 8, 899);
 				p1.className = "f6 lh-copy mv0";
-				add_location(p1, file$3, 26, 8, 863);
+				add_location(p1, file$3, 36, 8, 1202);
 				div1.className = "w-100 w-60-ns pl3-ns";
-				add_location(div1, file$3, 16, 6, 432);
+				add_location(div1, file$3, 19, 6, 515);
 				div2.className = "flex flex-column flex-row-ns";
-				add_location(div2, file$3, 7, 4, 164);
+				add_location(div2, file$3, 10, 4, 247);
 				a.className = "db pv4 ph3 ph0-l no-underline black dim";
 				a.href = "#0";
-				add_location(a, file$3, 6, 2, 98);
+				add_location(a, file$3, 9, 2, 181);
 				article.className = "bb b--black-10";
-				add_location(article, file$3, 5, 0, 63);
+				add_location(article, file$3, 8, 0, 146);
 			},
 
 			l: function claim(nodes) {
@@ -2150,8 +2284,10 @@ var app = (function () {
 				append(div1, h1);
 				append(h1, t1);
 				append(div1, t2);
+				if_block.m(div1, null);
+				append(div1, t3);
 				append(div1, p0);
-				append(div1, t4);
+				append(div1, t5);
 				append(div1, p1);
 			},
 
@@ -2163,6 +2299,15 @@ var app = (function () {
 				if (changed.title) {
 					set_data(t1, ctx.title);
 				}
+
+				if (current_block_type !== (current_block_type = select_block_type(ctx))) {
+					if_block.d(1);
+					if_block = current_block_type(ctx);
+					if (if_block) {
+						if_block.c();
+						if_block.m(div1, t3);
+					}
+				}
 			},
 
 			i: noop,
@@ -2172,25 +2317,44 @@ var app = (function () {
 				if (detaching) {
 					detach(article);
 				}
+
+				if_block.d();
 			}
 		};
 	}
 
 	function instance$2($$self, $$props, $$invalidate) {
-		let { imageURL, title } = $$props;
+		let { imageURL, title, isFavourite, id } = $$props;
+
+		function click_handler() {
+			return customMeetupsStore.toggleFavourite(id);
+		}
+
+		function click_handler_1() {
+			return customMeetupsStore.toggleFavourite(id);
+		}
 
 		$$self.$set = $$props => {
 			if ('imageURL' in $$props) $$invalidate('imageURL', imageURL = $$props.imageURL);
 			if ('title' in $$props) $$invalidate('title', title = $$props.title);
+			if ('isFavourite' in $$props) $$invalidate('isFavourite', isFavourite = $$props.isFavourite);
+			if ('id' in $$props) $$invalidate('id', id = $$props.id);
 		};
 
-		return { imageURL, title };
+		return {
+			imageURL,
+			title,
+			isFavourite,
+			id,
+			click_handler,
+			click_handler_1
+		};
 	}
 
-	class Meetup extends SvelteComponentDev {
+	class Meetup_1 extends SvelteComponentDev {
 		constructor(options) {
 			super(options);
-			init(this, options, instance$2, create_fragment$3, safe_not_equal, ["imageURL", "title"]);
+			init(this, options, instance$2, create_fragment$3, safe_not_equal, ["imageURL", "title", "isFavourite", "id"]);
 
 			const { ctx } = this.$$;
 			const props = options.props || {};
@@ -2199,6 +2363,12 @@ var app = (function () {
 			}
 			if (ctx.title === undefined && !('title' in props)) {
 				console.warn("<Meetup> was created without expected prop 'title'");
+			}
+			if (ctx.isFavourite === undefined && !('isFavourite' in props)) {
+				console.warn("<Meetup> was created without expected prop 'isFavourite'");
+			}
+			if (ctx.id === undefined && !('id' in props)) {
+				console.warn("<Meetup> was created without expected prop 'id'");
 			}
 		}
 
@@ -2217,6 +2387,22 @@ var app = (function () {
 		set title(value) {
 			throw new Error("<Meetup>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
 		}
+
+		get isFavourite() {
+			throw new Error("<Meetup>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+		}
+
+		set isFavourite(value) {
+			throw new Error("<Meetup>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+		}
+
+		get id() {
+			throw new Error("<Meetup>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+		}
+
+		set id(value) {
+			throw new Error("<Meetup>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+		}
 	}
 
 	/* src/App.svelte generated by Svelte v3.3.0 */
@@ -2225,18 +2411,20 @@ var app = (function () {
 
 	function get_each_context(ctx, list, i) {
 		const child_ctx = Object.create(ctx);
-		child_ctx.meetup = list[i];
+		child_ctx.meet = list[i];
 		return child_ctx;
 	}
 
-	// (80:4) {#each meetups as meetup}
+	// (25:4) {#each $meetups as meet}
 	function create_each_block(ctx) {
 		var current;
 
-		var meetup = new Meetup({
+		var meetup = new Meetup_1({
 			props: {
-			title: ctx.meetup.title,
-			imageURL: ctx.meetup.imageURL
+			imageURL: ctx.meet.imageURL,
+			title: ctx.meet.title,
+			isFavourite: ctx.meet.isFavourite,
+			id: ctx.meet.id
 		},
 			$$inline: true
 		});
@@ -2253,8 +2441,10 @@ var app = (function () {
 
 			p: function update(changed, ctx) {
 				var meetup_changes = {};
-				if (changed.meetups) meetup_changes.title = ctx.meetup.title;
-				if (changed.meetups) meetup_changes.imageURL = ctx.meetup.imageURL;
+				if (changed.$meetups) meetup_changes.imageURL = ctx.meet.imageURL;
+				if (changed.$meetups) meetup_changes.title = ctx.meet.title;
+				if (changed.$meetups) meetup_changes.isFavourite = ctx.meet.isFavourite;
+				if (changed.$meetups) meetup_changes.id = ctx.meet.id;
 				meetup.$set(meetup_changes);
 			},
 
@@ -2277,11 +2467,11 @@ var app = (function () {
 	}
 
 	function create_fragment$4(ctx) {
-		var link, t0, main, t1, section, t2, updating_title, updating_subtitle, updating_description, updating_imageURL, updating_address, updating_contact, current;
+		var link, t0, main, t1, section, t2, current;
 
 		var header = new Header({ $$inline: true });
 
-		var each_value = ctx.meetups;
+		var each_value = ctx.$meetups;
 
 		var each_blocks = [];
 
@@ -2302,70 +2492,7 @@ var app = (function () {
 			}
 		}
 
-		function form_title_binding(value) {
-			ctx.form_title_binding.call(null, value);
-			updating_title = true;
-			add_flush_callback(() => updating_title = false);
-		}
-
-		function form_subtitle_binding(value_1) {
-			ctx.form_subtitle_binding.call(null, value_1);
-			updating_subtitle = true;
-			add_flush_callback(() => updating_subtitle = false);
-		}
-
-		function form_description_binding(value_2) {
-			ctx.form_description_binding.call(null, value_2);
-			updating_description = true;
-			add_flush_callback(() => updating_description = false);
-		}
-
-		function form_imageURL_binding(value_3) {
-			ctx.form_imageURL_binding.call(null, value_3);
-			updating_imageURL = true;
-			add_flush_callback(() => updating_imageURL = false);
-		}
-
-		function form_address_binding(value_4) {
-			ctx.form_address_binding.call(null, value_4);
-			updating_address = true;
-			add_flush_callback(() => updating_address = false);
-		}
-
-		function form_contact_binding(value_5) {
-			ctx.form_contact_binding.call(null, value_5);
-			updating_contact = true;
-			add_flush_callback(() => updating_contact = false);
-		}
-
-		let form_props = {};
-		if (ctx.title !== void 0) {
-			form_props.title = ctx.title;
-		}
-		if (ctx.subtitle !== void 0) {
-			form_props.subtitle = ctx.subtitle;
-		}
-		if (ctx.description !== void 0) {
-			form_props.description = ctx.description;
-		}
-		if (ctx.imageURL !== void 0) {
-			form_props.imageURL = ctx.imageURL;
-		}
-		if (ctx.address !== void 0) {
-			form_props.address = ctx.address;
-		}
-		if (ctx.contact !== void 0) {
-			form_props.contact = ctx.contact;
-		}
-		var form = new CreateForm({ props: form_props, $$inline: true });
-
-		add_binding_callback(() => bind(form, 'title', form_title_binding));
-		add_binding_callback(() => bind(form, 'subtitle', form_subtitle_binding));
-		add_binding_callback(() => bind(form, 'description', form_description_binding));
-		add_binding_callback(() => bind(form, 'imageURL', form_imageURL_binding));
-		add_binding_callback(() => bind(form, 'address', form_address_binding));
-		add_binding_callback(() => bind(form, 'contact', form_contact_binding));
-		form.$on("handleSubmit", ctx.addMeetup);
+		var form = new CreateForm({ $$inline: true });
 
 		return {
 			c: function create() {
@@ -2386,9 +2513,9 @@ var app = (function () {
 				link.href = "https://unpkg.com/tachyons@4.10.0/css/tachyons.min.css";
 				add_location(link, file$4, 1, 2, 16);
 				section.className = "pa4";
-				add_location(section, file$4, 78, 2, 1456);
+				add_location(section, file$4, 23, 2, 461);
 				main.className = "svelte-sm65bd";
-				add_location(main, file$4, 76, 0, 1427);
+				add_location(main, file$4, 21, 0, 432);
 			},
 
 			l: function claim(nodes) {
@@ -2413,8 +2540,8 @@ var app = (function () {
 			},
 
 			p: function update(changed, ctx) {
-				if (changed.meetups) {
-					each_value = ctx.meetups;
+				if (changed.$meetups) {
+					each_value = ctx.$meetups;
 
 					for (var i = 0; i < each_value.length; i += 1) {
 						const child_ctx = get_each_context(ctx, each_value, i);
@@ -2434,27 +2561,6 @@ var app = (function () {
 					for (; i < each_blocks.length; i += 1) outro_block(i, 1, 1);
 					check_outros();
 				}
-
-				var form_changes = {};
-				if (!updating_title && changed.title) {
-					form_changes.title = ctx.title;
-				}
-				if (!updating_subtitle && changed.subtitle) {
-					form_changes.subtitle = ctx.subtitle;
-				}
-				if (!updating_description && changed.description) {
-					form_changes.description = ctx.description;
-				}
-				if (!updating_imageURL && changed.imageURL) {
-					form_changes.imageURL = ctx.imageURL;
-				}
-				if (!updating_address && changed.address) {
-					form_changes.address = ctx.address;
-				}
-				if (!updating_contact && changed.contact) {
-					form_changes.contact = ctx.contact;
-				}
-				form.$set(form_changes);
 			},
 
 			i: function intro(local) {
@@ -2496,108 +2602,12 @@ var app = (function () {
 	}
 
 	function instance$3($$self, $$props, $$invalidate) {
-		
+		let $meetups;
 
-	  let meetups = [
-	    {
-	      id: "a",
-	      title:
-	        "Giant Whale Invests Huge Money to Build a ComputerOut of Plankton",
-	      subtitle: "c",
-	      description: "d",
-	      imageURL: "http://mrmrs.github.io/photos/whale.jpg",
-	      address: "e",
-	      contact: "f"
-	    },
-	    {
-	      id: "a",
-	      title: "b2",
-	      subtitle: "c",
-	      description: "d",
-	      imageURL: "d",
-	      address: "e",
-	      contact: "f"
-	    }
-	  ];
-	  let title = "";
-	  let subtitle = "";
-	  let description = "";
-	  let imageURL = "";
-	  let address = "";
-	  let contact = "";
+		validate_store(customMeetupsStore, 'meetups');
+		subscribe($$self, customMeetupsStore, $$value => { $meetups = $$value; $$invalidate('$meetups', $meetups); });
 
-
-	  const addMeetup = () => {
-	    const newMeetup = {
-	      id: Math.random().toString(),
-	      title,
-	      subtitle,
-	      description,
-	      imageURL,
-	      address,
-	      contact
-	    };
-
-	    // https://github.com/immerjs/immer
-	    $$invalidate('meetups', meetups = produce(meetups, draft => {
-	      draft.push(newMeetup);
-	    }));
-
-	    // reset inputs
-	    $$invalidate('title', title = "");
-	    $$invalidate('subtitle', subtitle = "");
-	    $$invalidate('description', description = "");
-	    $$invalidate('imageURL', imageURL = "");
-	    $$invalidate('address', address = "");
-	    $$invalidate('contact', contact = "");
-	  };
-
-		function form_title_binding(value) {
-			title = value;
-			$$invalidate('title', title);
-		}
-
-		function form_subtitle_binding(value_1) {
-			subtitle = value_1;
-			$$invalidate('subtitle', subtitle);
-		}
-
-		function form_description_binding(value_2) {
-			description = value_2;
-			$$invalidate('description', description);
-		}
-
-		function form_imageURL_binding(value_3) {
-			imageURL = value_3;
-			$$invalidate('imageURL', imageURL);
-		}
-
-		function form_address_binding(value_4) {
-			address = value_4;
-			$$invalidate('address', address);
-		}
-
-		function form_contact_binding(value_5) {
-			contact = value_5;
-			$$invalidate('contact', contact);
-		}
-
-		return {
-			meetups,
-			title,
-			subtitle,
-			description,
-			imageURL,
-			address,
-			contact,
-			addMeetup,
-			form_title_binding,
-			form_subtitle_binding,
-			form_description_binding,
-			form_imageURL_binding,
-			form_address_binding,
-			form_contact_binding
-		};
+		return { $meetups };
 	}
 
 	class App extends SvelteComponentDev {

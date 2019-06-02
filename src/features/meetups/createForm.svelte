@@ -1,10 +1,6 @@
 <script>
-    import { isEmpty, isValidEmail } from "../../helpers/validation.js";
-
-  import { createEventDispatcher } from "svelte";
-  const dispatch = createEventDispatcher();
-
-
+  import { isEmpty, isValidEmail } from "../../helpers/validation.js";
+  import Meetup from "../meetups/meetupStore.js";
   import TextInput from "../../components/TextInput.svelte";
 
   export let title = "";
@@ -15,12 +11,31 @@
   export let contact = "";
  
 
-  console.log('isEmpty(title)',isEmpty(title) )
+  const addMeetup = () => {
+    const meetUpData = {
+      title,
+      subtitle,
+      description,
+      imageURL,
+      address,
+      contact
+    };
+
+    meetups.addMeetup(meetUpData)
+
+    // reset inputs
+    title = "";
+    subtitle = "";
+    description = "";
+    imageURL = "";
+    address = "";
+    contact = "";
+  };
 </script>
 
 <form
   class="measure center"
-  on:submit|preventDefault={() => dispatch('handleSubmit')}
+  on:submit|preventDefault={() => Meetup.addMeetup()}
 >
   <fieldset id="sign_up" class="ba b--transparent ph0 mh0">
     <legend class="f4 fw6 ph0 mh0">Create a Meetup</legend>
